@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract POLSToken is ERC20, Ownable {
+    uint256 public constant MAX_SUPPLY = 100000000000000000000000; // 100 万亿
+    uint8 public constant DECIMALS = 18;
+
+    constructor(address initialOwner) ERC20("POLS Token", "POLS") Ownable(initialOwner) {
+        _mint(_msgSender(), MAX_SUPPLY);
+    }
+
+    function mint(address account, uint256 amount) external onlyOwner {
+        require(totalSupply() + amount <= MAX_SUPPLY, "Mint would exceed max supply");
+        _mint(account, amount);
+    }
+
+    function burn(uint256 amount) external onlyOwner {
+        _burn(_msgSender(), amount);
+    }
+}
