@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LiteLLM 用量面板</title>
+  <style>
+    :root {
+      --bg: #0f1218;
+      --panel: #161b24;
+      --panel-2: #1d2330;
+      --border: #262d3c;
+      --text: #e6edf3;
+      --muted: #8b97a8;
+      --accent: #4f8cff;
+      --good: #2ecc71;
+      --warn: #f2c14e;
+      --bad: #ff5d5d;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif; }
+    header { display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid var(--border); }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    header .meta { color: var(--muted); font-size: 12px; }
+    header .meta .sep { margin: 0 8px; opacity: .4; }
+    main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; }
+
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      margin-bottom: 20px; }
+    .stat { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; }
+    .stat .label { color: var(--muted); font-size: 12px; }
+    .stat .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+    .stat .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px,1fr));
+      gap: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; }
+    .card h2 { margin: 0 0 2px; font-size: 16px; }
+    .card .aid { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+
+    .bigrow { display: flex; align-items: baseline; justify-content: space-between;
+      margin: 6px 0 10px; gap: 12px; flex-wrap: wrap; }
+    .bigrow .used { font-size: 26px; font-weight: 700; }
+    .bigrow .budget { color: var(--muted); }
+    .bigrow .remaining { margin-left: auto; color: var(--good); font-variant-numeric: tabular-nums; }
+
+    .bar { height: 10px; background: #243049; border-radius: 6px; overflow: hidden;
+      position: relative; }
+    .bar > span { display: block; height: 100%; background: var(--good);
+      transition: width .4s ease; }
+    .bar.warn > span { background: var(--warn); }
+    .bar.bad  > span { background: var(--bad); }
+    .bar-legend { display: flex; justify-content: space-between; color: var(--muted);
+      font-size: 11px; margin-top: 6px; }
+
+    .kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      margin: 14px 0; }
+    .kv > div { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
+    .kv .k { color: var(--muted); font-size: 11px; }
+    .kv .v { font-size: 15px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+    table th, table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    table th { color: var(--muted); font-weight: 500; }
+    table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .chart-wrap { height: 160px; margin-top: 12px; }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; }
+    button.refresh { background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+    button.refresh:hover { border-color: var(--accent); }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 99px;
+      font-size: 11px; background: #243049; color: var(--muted); }
+    .pill.good { background: rgba(46,204,113,.15); color: var(--good); }
+    .pill.warn { background: rgba(242,193,78,.15); color: var(--warn); }
+    .pill.bad  { background: rgba(255,93,93,.15); color: var(--bad); }
+
+    .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
+    @media (max-width: 800px) {
+      .summary { grid-template-columns: repeat(2,1fr); }
+      .kv { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LiteLLM 用量面板</h1>
+    <div class="toolbar">
+      <span class="meta"><span id="month-label">—</span>
+        <span class="sep">·</span>自动刷新 <span id="countdown">30</span>s</span>
+      <button class="refresh" id="refresh-btn">立即刷新</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" id="summary">
+      <div class="stat"><div class="label">本月总消耗</div><div class="value" id="s-used">—</div><div class="sub" id="s-used-sub">—</div></div>
+      <div class="stat"><div class="label">总预算</div><div class="value" id="s-budget">—</div><div class="sub" id="s-budget-sub">—</div></div>
+      <div class="stat"><div class="label">总剩余</div><div class="value" id="s-remaining">—</div><div class="sub" id="s-remaining-sub">—</div></div>
+      <div class="stat"><div class="label">本月请求数</div><div class="value" id="s-requests">—</div><div class="sub" id="s-tokens">—</div></div>
+    </section>
+
+    <section class="accounts" id="accounts">
+      <div class="empty">加载中…</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

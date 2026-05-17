@@ -1,0 +1,82 @@
+# LiteLLM 多账号路由配置
+# ------------------------------------------------------------
+# - 每个 deployment 的 model_info.id 对应 tracker/budgets.yaml 的 account_id
+# - 同一个 model_name 下可以挂多个 Key，LiteLLM 会按 routing_strategy 分流
+# - api_key 支持 os.environ/<VAR> 占位符，运行时从环境变量读取
+
+model_list:
+  # ---------- gpt-4o ----------
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY_1
+      rpm: 500
+      tpm: 30000
+    model_info:
+      id: account-1
+
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY_2
+      rpm: 500
+      tpm: 30000
+    model_info:
+      id: account-2
+
+  # ---------- gpt-4o-mini ----------
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY_1
+      rpm: 1000
+      tpm: 100000
+    model_info:
+      id: account-1
+
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY_2
+      rpm: 1000
+      tpm: 100000
+    model_info:
+      id: account-2
+
+  # ---------- gpt-4-turbo ----------
+  - model_name: gpt-4-turbo
+    litellm_params:
+      model: openai/gpt-4-turbo
+      api_key: os.environ/OPENAI_API_KEY_1
+    model_info:
+      id: account-1
+
+  - model_name: gpt-4-turbo
+    litellm_params:
+      model: openai/gpt-4-turbo
+      api_key: os.environ/OPENAI_API_KEY_2
+    model_info:
+      id: account-2
+
+router_settings:
+  # usage-based-routing-v2: 尽量把流量分到离配额上限最远的 Key
+  # 其他可选: simple-shuffle / least-busy / latency-based-routing
+  routing_strategy: usage-based-routing-v2
+  num_retries: 2
+  timeout: 60
+  allowed_fails: 2
+  cooldown_time: 60
+  # 同 model_name 的多个 deployment 之间已自动故障转移
+  # 这里额外声明跨模型级别的 fallback
+  fallbacks:
+    - gpt-4o: ["gpt-4-turbo", "gpt-4o-mini"]
+
+litellm_settings:
+  drop_params: true
+  # 注册我们的 custom callback（模块路径.属性名）
+  # 容器内 /app/callback_handler.py，PYTHONPATH 已包含 /app
+  callbacks: callback_handler.tracker_callback
+
+general_settings:
+  # 客户端访问 LiteLLM 时要带的 bearer token
+  master_key: os.environ/LITELLM_MASTER_KEY

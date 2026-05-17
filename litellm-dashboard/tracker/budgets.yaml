@@ -1,0 +1,10 @@
+# 每个账号的月度预算配置
+# account_id 必须和 litellm/config.yaml 里 model_info.id 一致
+# 也可以对不存在的 id 设置，后续添加即可
+accounts:
+  account-1:
+    label: "主账号 (Account A)"
+    monthly_budget_usd: 100
+  account-2:
+    label: "备用账号 (Account B)"
+    monthly_budget_usd: 100
