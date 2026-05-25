@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Runes Mint Monitor · 下一块 Gas / Bound 发射台</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">⛏️</span>
+    <div>
+      <h1>Runes Mint Monitor</h1>
+      <p class="sub">下一个比特币区块 mint gas 监控 · 服务于 <a href="https://app.bound.exchange/launchpad" target="_blank" rel="noopener">Bound Launchpad</a> 等符文发射场</p>
+    </div>
+  </div>
+  <div class="liveStats">
+    <div class="stat">
+      <span class="label">BTC tip</span>
+      <span class="value" id="tipHeight">—</span>
+      <span class="meta" id="tipAge">—</span>
+    </div>
+    <div class="stat">
+      <span class="label">下个块最低 fee</span>
+      <span class="value" id="nextBlockMin">— sat/vB</span>
+      <span class="meta" id="nextBlockMedian">中位数 — sat/vB</span>
+    </div>
+    <div class="stat">
+      <span class="label">Mempool</span>
+      <span class="value" id="mempoolPending">—</span>
+      <span class="meta" id="mempoolBlocks">— 个待打包块</span>
+    </div>
+    <div class="stat ws" id="wsStatus" data-state="idle">
+      <span class="dot"></span>
+      <span class="label">实时连接</span>
+      <span class="value" id="wsLabel">连接中…</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Mint Calculator -->
+  <section class="card">
+    <h2>下一块 Mint Gas 计算器</h2>
+    <p class="hint">
+      粘贴 Bound launchpad 链接(<code>https://app.bound.exchange/launchpad/&lt;runeId&gt;</code>),或者直接输入符文名 / 符文 ID。
+      会拉 ordinals.com 的链上数据 + mempool.space 的 fee 估算。
+    </p>
+    <div class="row">
+      <label class="grow">
+        <span>符文名 / ID / Bound URL</span>
+        <input id="runeInput" type="text" placeholder="REEBOK 或 950958:2548 或 https://app.bound.exchange/launchpad/..." autocomplete="off" />
+      </label>
+      <label>
+        <span>每笔 mint 数量</span>
+        <input id="repeats" type="number" min="1" value="1" />
+      </label>
+      <label>
+        <span>单笔 vBytes</span>
+        <input id="vbytes" type="number" min="50" value="160" />
+      </label>
+      <label>
+        <span>BTC/USD</span>
+        <input id="btcUsd" type="number" min="0" step="100" value="0" />
+      </label>
+    </div>
+    <div class="row">
+      <button id="lookupBtn" class="primary">查询 / 刷新</button>
+      <button id="watchBtn">⭐ 加入关注</button>
+      <button id="openBoundBtn" class="ghost">在 Bound 打开</button>
+      <button id="openMempoolBtn" class="ghost">在 mempool.space 看费率</button>
+    </div>
+
+    <div id="runeResult" class="result hidden">
+      <div class="resTop">
+        <div>
+          <div class="runeName" id="resName">—</div>
+          <div class="meta" id="resId">—</div>
+        </div>
+        <div class="status" id="resStatus">—</div>
+      </div>
+
+      <div class="metricsGrid">
+        <div class="metric">
+          <span class="mlabel">每笔 mint 量</span>
+          <span class="mval" id="mAmount">—</span>
+        </div>
+        <div class="metric">
+          <span class="mlabel">已 mint / 上限</span>
+          <span class="mval" id="mProgress">—</span>
+          <div class="bar"><div id="mBar"></div></div>
+        </div>
+        <div class="metric">
+          <span class="mlabel">剩余可 mint 次数</span>
+          <span class="mval" id="mRemaining">—</span>
+        </div>
+        <div class="metric">
+          <span class="mlabel">Mint 起始 / 结束高度</span>
+          <span class="mval" id="mHeights">—</span>
+        </div>
+        <div class="metric hl">
+          <span class="mlabel">挤进下一个块所需 sat/vB</span>
+          <span class="mval" id="mNextFee">—</span>
+          <span class="mhint" id="mNextFeeHint">来自 mempool.space</span>
+        </div>
+        <div class="metric hl">
+          <span class="mlabel">单笔总费用估算</span>
+          <span class="mval" id="mTotalFee">—</span>
+          <span class="mhint" id="mTotalFeeUsd">—</span>
+        </div>
+      </div>
+
+      <details class="raw">
+        <summary>原始数据 (debug)</summary>
+        <pre id="rawJson"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- Watched Runes -->
+  <section class="card">
+    <h2>⭐ 我关注的符文</h2>
+    <p class="hint">本地保存,刷新自动拉最新链上数据,看哪个临 mint 完 / 哪个还没开。</p>
+    <table class="watch" id="watchTable">
+      <thead><tr>
+        <th>符文</th>
+        <th>状态</th>
+        <th>进度</th>
+        <th>剩余次数</th>
+        <th>下一块 fee × 单笔总费</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="watchBody">
+        <tr class="empty"><td colspan="6">还没添加。先在上面查一个符文,然后点 “加入关注”。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Latency analysis -->
+  <section class="card">
+    <h2>⏱️ Bound 与比特币区块的延迟分析</h2>
+    <div id="latencyLive" class="latencyBox">
+      <div class="latencyRow">
+        <span>最近一个块的探测延迟</span>
+        <span id="latLast">监听中…</span>
+      </div>
+      <div class="latencyRow">
+        <span>过去 5 个块的平均探测延迟</span>
+        <span id="latAvg">—</span>
+      </div>
+      <div class="latencyRow">
+        <span>当前 Bound launchpad 显示的 tip</span>
+        <span id="latBoundTip">未知(浏览器跨域无法直接读)</span>
+      </div>
+    </div>
+
+    <div class="analysis">
+      <h3>能不能在比特币过块之后“立刻”在 Bound mint?</h3>
+      <p>
+        <b>结论:</b> 能,但要分清楚两层延迟。
+        Bound 自己 <b>不是矿池、也不打包</b>,它只是一个前端 + 索引器。所有 mint 都是普通的比特币交易,
+        最终能不能落在下个块,完全取决于矿工选择 mempool 里 fee 最高的那批交易。
+      </p>
+      <ol>
+        <li>
+          <b>网络层</b>:你只要在 N 块出来后,<b>立刻</b>用一个 ≥ 当前 mempool 里第一档的 sat/vB 把 mint 交易广播出去,
+          矿工就有可能把它打进 N+1 块。这一步和 Bound 没关系,你直接走 Xverse / UniSat / 自建节点都行。
+        </li>
+        <li>
+          <b>Bound 索引延迟</b>:Bound 拿到新块通常要 1–5 秒(取决于他们用的索引器和 ws 推送)。这期间它界面上的
+          “已 mint xx/cap” 还是上一块的快照。如果你是<b>看 Bound UI</b> 才决定要不要广播,你已经天然落后 N+1 块的窗口前几秒。
+        </li>
+        <li>
+          <b>mempool 拥堵</b>:真正决定能不能上下个块的,是 mempool.space 给的
+          <code>mempool-blocks[0].feeRange[0]</code>(第一个待打包块的最低 fee)。
+          只要你的 sat/vB ≥ 这个数,理论上下个块就能落地。这正是页面顶部 “下个块最低 fee” 显示的值。
+        </li>
+        <li>
+          <b>实战策略</b>:想稳进 N+1 块的玩法是 ——
+          <ul>
+            <li>不要等 Bound UI,挂 mempool.space 的 ws,看到 <code>block</code> 事件就立刻广播。</li>
+            <li>用 mempool-blocks[0] 的 <b>median</b> 而不是最低值,留 1.2~1.5x 缓冲对抗瞬间 mempool 涨价。</li>
+            <li>对于 Bound 这种聚合发射台,如果他家走 <b>批量服务端打包</b>(比如某些 launchpad 帮你拼交易),
+              那你额外受他们后端 cron / 队列的 5–30 秒延迟约束。
+              这种模式下,纯拼速度大概率拼不过自己直接广播的人。</li>
+          </ul>
+        </li>
+        <li>
+          <b>本工具的定位</b>:把 mempool.space 的实时 fee + ordinals.com 的链上 mint 进度合到一个面板,
+          让你在 Bound 的“下一个块需要多少 gas”这个问题上有个独立、可信、低延迟的参考。
+        </li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>
+    数据来源:
+    <a href="https://mempool.space/docs/api" target="_blank" rel="noopener">mempool.space</a> ·
+    <a href="https://docs.ordinals.com/" target="_blank" rel="noopener">ordinals.com</a> ·
+    <a href="https://app.bound.exchange/launchpad" target="_blank" rel="noopener">Bound Launchpad</a>
+  </div>
+  <div class="warn">本页面只提供链上观测,不发送/签名任何交易。Mint 时请用你自己的钱包。</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
