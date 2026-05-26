@@ -46,7 +46,8 @@
     <h2>下一块 Mint Gas 计算器</h2>
     <p class="hint">
       粘贴 Bound launchpad 链接(<code>https://app.bound.exchange/launchpad/&lt;runeId&gt;</code>),或者直接输入符文名 / 符文 ID。
-      会拉 ordinals.com 的链上数据 + mempool.space 的 fee 估算。
+      数据来自 <a href="https://docs.xverse.app/" target="_blank" rel="noopener">api.xverse.app</a> 的 ord 索引器(无需 API key、有 CORS)
+      + <a href="https://mempool.space/docs/api" target="_blank" rel="noopener">mempool.space</a> 的 fee 估算。
     </p>
     <div class="row">
       <label class="grow">
@@ -151,6 +152,10 @@
         <span id="latAvg">—</span>
       </div>
       <div class="latencyRow">
+        <span>当前数据源(rune 元数据)</span>
+        <span id="latApiSource">—</span>
+      </div>
+      <div class="latencyRow">
         <span>当前 Bound launchpad 显示的 tip</span>
         <span id="latBoundTip">未知(浏览器跨域无法直接读)</span>
       </div>
@@ -188,8 +193,9 @@
           </ul>
         </li>
         <li>
-          <b>本工具的定位</b>:把 mempool.space 的实时 fee + ordinals.com 的链上 mint 进度合到一个面板,
-          让你在 Bound 的“下一个块需要多少 gas”这个问题上有个独立、可信、低延迟的参考。
+          <b>本工具的定位</b>:把 mempool.space 的实时 fee + Xverse 的 ord 索引器返回的链上 mint 进度合到一个面板,
+          让你在 Bound 的"下一个块需要多少 gas"这个问题上有个独立、可信、低延迟的参考。
+          (注:ordinals.com 自己的 JSON API 已被官方关停,所以默认数据源换成了 Xverse 暴露的 ord 节点。)
         </li>
       </ol>
     </div>
@@ -200,7 +206,7 @@
   <div>
     数据来源:
     <a href="https://mempool.space/docs/api" target="_blank" rel="noopener">mempool.space</a> ·
-    <a href="https://docs.ordinals.com/" target="_blank" rel="noopener">ordinals.com</a> ·
+    <a href="https://docs.xverse.app/" target="_blank" rel="noopener">api.xverse.app (ord)</a> ·
     <a href="https://app.bound.exchange/launchpad" target="_blank" rel="noopener">Bound Launchpad</a>
   </div>
   <div class="warn">本页面只提供链上观测,不发送/签名任何交易。Mint 时请用你自己的钱包。</div>
